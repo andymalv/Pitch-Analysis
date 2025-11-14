@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from typing import List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import signal
@@ -48,7 +49,7 @@ def get_data(directory):
         positions = []
 
         for frame in range(num_frames):
-            time_stamp.append(data["skeletalData"]["frames"][frame]["timeStamps"])
+            time_stamp.append(data["skeletalData"]["frames"][frame]["timeStamp"])
             blah = pd.DataFrame(
                 data["skeletalData"]["frames"][frame]["positions"][0]["joints"]
             )
@@ -502,3 +503,42 @@ def get_metrics(player):
     player.metrics = [hold_theta, hold_omega]
 
     return
+
+
+# %%
+def plot_metrics(player):
+    player_name = player.name
+    metrics = player.metrics
+
+    metrics_plot = [
+        metrics[0].knee,
+        metrics[0].shoulder,
+        metrics[0].elbow,
+        metrics[1].elbow,
+        metrics[1].pelvis,
+        metrics[1].trunk,
+        metrics[1].hand,
+    ]
+    labels = [
+        "knee angle",
+        "shoulder rotation",
+        "elbow angle",
+        "elbow velocity",
+        "pelvis velocity",
+        "trunk velocity",
+        "hand velocity",
+    ]
+
+    cols = 2
+    rows = int(np.ceil(len(metrics_plot) / 2))
+
+    fig, axs = plt.subplots(rows, cols, figsize=(20, 10))
+    fig.suptitle(player_name)
+    for row in range(rows):
+
+        for col in range(cols):
+
+            metric = metrics_plot[row + col]
+            axs[row, col].plot(range(len(metric)), metric)
+            label = labels[row + col]
+            axs[row, col].set_ylabel(label)
