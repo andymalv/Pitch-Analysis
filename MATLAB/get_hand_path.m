@@ -5,7 +5,7 @@ arguments
 end
 
 shoulder_id = get_joint_ids("shoulder", side);
-wrist_id = get_joint_ids("shoulder", side);
+wrist_id = get_joint_ids("wrist", side);
 shoulder_data = get_joint_data(pitch, shoulder_id);
 wrist_data = get_joint_data(pitch, wrist_id);
 

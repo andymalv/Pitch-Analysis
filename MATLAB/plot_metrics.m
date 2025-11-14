@@ -29,14 +29,6 @@ else
 
 end
 
-
-% Convert to camal case
-% metrics = replace(metrics, "Extension ", "");
-% metrics = replace(metrics, "Angular ", "");
-% metrics = lower(metrics);
-% metrics = regexprep(metrics, '\s+(\w)', '${upper($1)}');
-% metrics = string(metrics);
-
 num_metrics = length(metrics);
 rows = ceil(num_metrics/2);
 cols = 2;

@@ -7,8 +7,6 @@ end
 num_joints = length(joint);
 
 joint_lookup = struct();
-% joint_lookup.nose.center = 1;
-% joint_lookup.neck.center = 2;
 joint_lookup.nose = 1;
 joint_lookup.neck = 2;
 joint_lookup.eye.right = 16;
@@ -51,7 +49,6 @@ for i = 1:num_joints
         end
     catch ME
         error("Joint '%s' and side '%s' combination not found", joint(i), side);
-        % return;
     end
 
 end

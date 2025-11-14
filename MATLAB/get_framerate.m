@@ -8,10 +8,3 @@ if (last-first) < 0
 end
 
 framerate = (last - first) / length(pitch);
-
-% If minute ticks over
-% if framerate < 0
-%     last = 60 + last;
-%     framerate = (last - first) / length(pitch);
-% 
-% end

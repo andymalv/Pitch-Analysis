@@ -7,7 +7,6 @@ close all
 d = dir('..');
 isub = [d(:).isdir];
 directories = {d(isub).name}';
-% directories(ismember(directories,{'.','..'})) = [];
 directories = directories(contains(directories, "player"));
 players = string(directories);
 
@@ -35,16 +34,11 @@ player_selection = strrep(player_selection, "Player ", "player");
 pitches = string(fieldnames(df.(player_selection)));
 pitches = pitches(contains(pitches, "pitch", "IgnoreCase", true));
 pitches = strrep(pitches, "pitch", "Pitch ");
-% pitches = vertcat("All", pitches);
 pitch_index = listdlg('ListString', pitches, 'SelectionMode', 'multiple',...
     "Name", "Select Pitch to Analyze", "ListSize", window_size);
 
 if isempty(pitch_index), return; end
 pitches_selection = pitches(pitch_index);
-
-% if pitches_selection ~= "All"
-%     pitches_selection = strrep(pitches_selection, "Pitch ", "pitch");
-% end
 
 % Select metrics
 metrics = ["Knee Flexion", "Elbow Flexion", "Shoulder Rotation", ...
