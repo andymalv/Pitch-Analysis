@@ -1,26 +1,9 @@
 # %%
-import os
-
-import numpy as np
-import pandas as pd
-
+import mod.py
 
 # %%
-def get_data(directory):
-    print(f"Gathering data for", directory, "...\n")
+player1 = get_data("../player1")
+player2 = get_data("../player2")
 
-    files = []
-    for file in os.listdir(directory):
-        if file.endswith(".json"):
-            files.append(os.path.join(directory, file))
-
-    num_files = np.size(files)
-
-    for i in range(num_files):
-        try:
-            file_path = files[i]
-            data_hold = pd.read_json(file_path)
-        except:
-            print(f"Error reading file: ", file_path)
-
-        # filed_name =
+get_metrics(player1)
+get_metrics(player2)
