@@ -1,5 +1,5 @@
 # %%
-import mod.py
+import pitch_analysis.py
 
 # %%
 player1 = get_data("../player1")
