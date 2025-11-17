@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from typing import List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import signal
@@ -24,7 +25,7 @@ class Player:
 
 
 # %%
-def get_data(directory):
+def get_data(directory:str) -> Player:
     name = directory[3:]
     print(f"Gathering data for", name, "...\n")
 
@@ -48,7 +49,7 @@ def get_data(directory):
         positions = []
 
         for frame in range(num_frames):
-            time_stamp.append(data["skeletalData"]["frames"][frame]["timeStamps"])
+            time_stamp.append(data["skeletalData"]["frames"][frame]["timeStamp"])
             blah = pd.DataFrame(
                 data["skeletalData"]["frames"][frame]["positions"][0]["joints"]
             )
@@ -62,7 +63,7 @@ def get_data(directory):
     return player
 
 
-def get_joint_id(joint, side):
+def get_joint_id(joint:str, side:str) -> List[int]:
 
     if type(joint) == str:
         joint = [joint]
@@ -115,7 +116,7 @@ def get_joint_id(joint, side):
     return joint_id
 
 
-def get_joint_data(pitch, joint):
+def get_joint_data(pitch:Pitch, joint:str) -> pd.DataFrame:
     num_frames = np.shape(pitch.positions)[0]
     joint_data = np.zeros([num_frames, 3])
 
@@ -128,7 +129,7 @@ def get_joint_data(pitch, joint):
     return joint_data
 
 
-def get_throwing_hand(player):
+def get_throwing_hand(player:Player) -> str:
     right_id = get_joint_id("wrist", "right")
     left_id = get_joint_id("wrist", "left")
 
@@ -146,7 +147,7 @@ def get_throwing_hand(player):
     return side
 
 
-def get_joint_group(joint):
+def get_joint_group(joint:str) -> str:
     extra = ""
 
     match joint.lower():
@@ -171,7 +172,7 @@ def get_joint_group(joint):
     return joint_group
 
 
-def get_framerate(pitch):
+def get_framerate(pitch:str) -> float
     first = float(pitch.timeStamps[0][-10:-1])
     last = float(pitch.timeStamps[-1][-10:-1])
 
@@ -183,12 +184,13 @@ def get_framerate(pitch):
     return framerate
 
 
-def get_joint_angle(proximal_data, joint_data, distal_data, extra_data=None):
+def get_joint_angle(proximal_data:pd.DataFrame, joint_data:pd.DataFrame, 
+                    distal_data:pd.DataFrame, extra_data=None) -> pd.DataFrame:
     num_frames = np.shape(joint_data)[0]
 
     distal_segment = joint_data - distal_data
 
-    if np.size(extra_data) > 1:
+    if extra_data is not None and np.size(extra_data) == np.size(joint_data):
         intermediate_segment = joint_data - proximal_data
         extra_segment = extra_data - proximal_data
         proximal_segment = np.cross(extra_segment, intermediate_segment)
@@ -212,7 +214,7 @@ def get_joint_angle(proximal_data, joint_data, distal_data, extra_data=None):
     return theta
 
 
-def get_elbow_angle(pitch, side):
+def get_elbow_angle(pitch:Pitch, side:str) -> pd.DataFrame:
     joint_group = get_joint_group("elbow")
     joint_ids = get_joint_id(joint_group, side)
     shoulder_data = get_joint_data(pitch, joint_ids[0])
@@ -241,7 +243,7 @@ def get_elbow_angle(pitch, side):
     return theta
 
 
-def get_knee_angle(pitch, side):
+def get_knee_angle(pitch:Pitch, side:str) -> pd.DataFrame:
     joint_group = get_joint_group("knee")
     joint_ids = get_joint_id(joint_group, side)
     hip_data = get_joint_data(pitch, joint_ids[0])
@@ -264,7 +266,7 @@ def get_knee_angle(pitch, side):
     return theta
 
 
-def get_shoulder_rotation(pitch, side):
+def get_shoulder_rotation(pitch:Pitch, side:str) -> pd.DataFrame:
     joint_group = get_joint_group("shoulder")
     joint_ids = get_joint_id(joint_group, side)
     neck_data = get_joint_data(pitch, joint_ids[0])
@@ -296,7 +298,8 @@ def get_shoulder_rotation(pitch, side):
     return theta
 
 
-def get_segment_rotation(point1_data, point2_data, rotation_axis):
+def get_segment_rotation(point1_data:pd.DataFrame, point2_data:pd.DataFrame, 
+                         rotation_axis:str) -> pd.DataFrame:
     point1_data = np.array(point1_data)
     point2_data = np.array(point2_data)
 
@@ -344,7 +347,7 @@ def get_segment_rotation(point1_data, point2_data, rotation_axis):
     return theta
 
 
-def get_pelvis_rotation(pitch):
+def get_pelvis_rotation(pitch:Pitch) -> pd.DataFrame:
     right_hip_id = get_joint_id("hip", "right")
     left_hip_id = get_joint_id("hip", "left")
     right_hip_data = get_joint_data(pitch, right_hip_id)
@@ -367,7 +370,7 @@ def get_pelvis_rotation(pitch):
     return theta
 
 
-def get_trunk_rotation(pitch):
+def get_trunk_rotation(pitch:Pitch) -> pd.DataFrame:
     right_shoulder_id = get_joint_id("shoulder", "right")
     left_shoulder_id = get_joint_id("shoulder", "left")
     right_shoulder_data = get_joint_data(pitch, right_shoulder_id)
@@ -390,7 +393,7 @@ def get_trunk_rotation(pitch):
     return theta
 
 
-def get_hand_path(pitch, side):
+def get_hand_path(pitch:Pitch, side:str) -> pd.DataFrame:
     shoulder_id = get_joint_id("shoulder", side)
     wrist_id = get_joint_id("wrist", side)
     shoulder_data = get_joint_data(pitch, shoulder_id)
@@ -439,7 +442,7 @@ def get_hand_path(pitch, side):
 # %%
 
 
-def get_metrics(player):
+def get_metrics(player:Player) -> None:
     arm = get_throwing_hand(player)
     if arm == "right":
         leg = "left"
