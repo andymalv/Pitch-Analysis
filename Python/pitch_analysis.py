@@ -1,4 +1,5 @@
 # %%
+import cProfile
 import os
 from dataclasses import dataclass
 from typing import List
@@ -6,6 +7,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from line_profiler import profile
 from scipy import signal
 
 
@@ -25,17 +27,18 @@ class Player:
 
 
 # %%
-def get_data(directory:str) -> Player:
+@profile
+def get_data(directory: str) -> Player:
     name = directory[3:]
     print(f"Gathering data for", name, "...\n")
 
-    files = []
+    files: list[str] = []
     for file in os.listdir(directory):
         if file.endswith(".json"):
             files.append(os.path.join(directory, file))
 
     num_files = np.size(files)
-    pitches = []
+    pitches: list[Pitch] = []
 
     for file in range(num_files):
         try:
@@ -45,15 +48,12 @@ def get_data(directory:str) -> Player:
             print(f"Error reading file: ", file_path)
 
         num_frames = np.size(data["skeletalData"]["frames"])
-        time_stamp = []
-        positions = []
 
-        for frame in range(num_frames):
-            time_stamp.append(data["skeletalData"]["frames"][frame]["timeStamp"])
-            blah = pd.DataFrame(
-                data["skeletalData"]["frames"][frame]["positions"][0]["joints"]
-            )
-            positions.append(blah)
+        frames = data["skeletalData"]["frames"]
+        time_stamp = [str(frame["timeStamp"]) for frame in frames]
+        positions = pd.json_normalize(
+            frames, record_path=["positions", "joints"]
+        ).set_index("id")
 
         pitch = Pitch(positions, time_stamp, [])
         pitches.append(pitch)
@@ -63,7 +63,7 @@ def get_data(directory:str) -> Player:
     return player
 
 
-def get_joint_id(joint:str, side:str) -> List[int]:
+def get_joint_id(joint: list[str], side: str) -> list[int]:
 
     if type(joint) == str:
         joint = [joint]
@@ -99,7 +99,7 @@ def get_joint_id(joint:str, side:str) -> List[int]:
     }
 
     num_joints = np.size(joint)
-    joint_id = []
+    joint_id: list[int] = []
 
     for i in range(num_joints):
         try:
@@ -111,25 +111,20 @@ def get_joint_id(joint:str, side:str) -> List[int]:
             joint_id.append(joint_lookup[this_joint])
 
         except:
-            print(f"Joint ", joint[i], " and side ", side, " combination not found")
+            print(f"Joint ", joint, " and side ", side, " combination not found")
 
     return joint_id
 
 
-def get_joint_data(pitch:Pitch, joint:str) -> pd.DataFrame:
-    num_frames = np.shape(pitch.positions)[0]
-    joint_data = np.zeros([num_frames, 3])
-
-    for i in range(num_frames):
-        joint_data[i, :] = pitch.positions[i].iloc[joint, 0:3]
-
-    joint_data = pd.DataFrame(joint_data)
-    joint_data.columns = ["x", "y", "z"]
+@profile
+def get_joint_data(pitch: Pitch, joint: int) -> pd.DataFrame:
+    num_frames = len(pitch.timeStamps)
+    joint_data = pitch.positions.loc[joint].reset_index(drop=True)
 
     return joint_data
 
 
-def get_throwing_hand(player:Player) -> str:
+def get_throwing_hand(player: Player) -> str:
     right_id = get_joint_id("wrist", "right")
     left_id = get_joint_id("wrist", "left")
 
@@ -147,7 +142,7 @@ def get_throwing_hand(player:Player) -> str:
     return side
 
 
-def get_joint_group(joint:str) -> str:
+def get_joint_group(joint: str) -> list[str]:
     extra = ""
 
     match joint.lower():
@@ -172,7 +167,7 @@ def get_joint_group(joint:str) -> str:
     return joint_group
 
 
-def get_framerate(pitch:str) -> float
+def get_framerate(pitch: str) -> float:
     first = float(pitch.timeStamps[0][-10:-1])
     last = float(pitch.timeStamps[-1][-10:-1])
 
@@ -184,8 +179,13 @@ def get_framerate(pitch:str) -> float
     return framerate
 
 
-def get_joint_angle(proximal_data:pd.DataFrame, joint_data:pd.DataFrame, 
-                    distal_data:pd.DataFrame, extra_data=None) -> pd.DataFrame:
+@profile
+def get_joint_angle(
+    proximal_data: pd.DataFrame,
+    joint_data: pd.DataFrame,
+    distal_data: pd.DataFrame,
+    extra_data=None,
+) -> pd.DataFrame:
     num_frames = np.shape(joint_data)[0]
 
     distal_segment = joint_data - distal_data
@@ -214,7 +214,7 @@ def get_joint_angle(proximal_data:pd.DataFrame, joint_data:pd.DataFrame,
     return theta
 
 
-def get_elbow_angle(pitch:Pitch, side:str) -> pd.DataFrame:
+def get_elbow_angle(pitch: Pitch, side: str) -> pd.DataFrame:
     joint_group = get_joint_group("elbow")
     joint_ids = get_joint_id(joint_group, side)
     shoulder_data = get_joint_data(pitch, joint_ids[0])
@@ -243,7 +243,7 @@ def get_elbow_angle(pitch:Pitch, side:str) -> pd.DataFrame:
     return theta
 
 
-def get_knee_angle(pitch:Pitch, side:str) -> pd.DataFrame:
+def get_knee_angle(pitch: Pitch, side: str) -> pd.DataFrame:
     joint_group = get_joint_group("knee")
     joint_ids = get_joint_id(joint_group, side)
     hip_data = get_joint_data(pitch, joint_ids[0])
@@ -266,7 +266,7 @@ def get_knee_angle(pitch:Pitch, side:str) -> pd.DataFrame:
     return theta
 
 
-def get_shoulder_rotation(pitch:Pitch, side:str) -> pd.DataFrame:
+def get_shoulder_rotation(pitch: Pitch, side: str) -> pd.DataFrame:
     joint_group = get_joint_group("shoulder")
     joint_ids = get_joint_id(joint_group, side)
     neck_data = get_joint_data(pitch, joint_ids[0])
@@ -298,8 +298,10 @@ def get_shoulder_rotation(pitch:Pitch, side:str) -> pd.DataFrame:
     return theta
 
 
-def get_segment_rotation(point1_data:pd.DataFrame, point2_data:pd.DataFrame, 
-                         rotation_axis:str) -> pd.DataFrame:
+@profile
+def get_segment_rotation(
+    point1_data: pd.DataFrame, point2_data: pd.DataFrame, rotation_axis: str
+) -> pd.DataFrame:
     point1_data = np.array(point1_data)
     point2_data = np.array(point2_data)
 
@@ -316,14 +318,6 @@ def get_segment_rotation(point1_data:pd.DataFrame, point2_data:pd.DataFrame,
     num_frames = np.shape(point1_data)[0]
     theta = np.zeros(num_frames)
 
-    # start_axis1 = np.absolute(point1_data.iloc[0, :] - point2_data.iloc[0, :])
-    # start_axis2 = np.cross(rotation_axis, start_axis1)
-    # start_axis2 = start_axis2 / np.linalg.norm(start_axis2)
-    #
-    # for i in range(1, num_frames):
-    #     axis1 = np.absolute(point1_data.iloc[i, :] - point2_data.iloc[i, :])
-    #     axis2 = np.cross(rotation_axis, axis1)
-    #     current_axis2 = axis2 / np.linalg.norm(axis2)
     start_axis1 = np.absolute(point1_data[0, :] - point2_data[0, :])
     start_axis2 = np.cross(rotation_axis, start_axis1)
     start_axis2 = start_axis2 / np.linalg.norm(start_axis2)
@@ -347,7 +341,7 @@ def get_segment_rotation(point1_data:pd.DataFrame, point2_data:pd.DataFrame,
     return theta
 
 
-def get_pelvis_rotation(pitch:Pitch) -> pd.DataFrame:
+def get_pelvis_rotation(pitch: Pitch) -> pd.DataFrame:
     right_hip_id = get_joint_id("hip", "right")
     left_hip_id = get_joint_id("hip", "left")
     right_hip_data = get_joint_data(pitch, right_hip_id)
@@ -370,7 +364,7 @@ def get_pelvis_rotation(pitch:Pitch) -> pd.DataFrame:
     return theta
 
 
-def get_trunk_rotation(pitch:Pitch) -> pd.DataFrame:
+def get_trunk_rotation(pitch: Pitch) -> pd.DataFrame:
     right_shoulder_id = get_joint_id("shoulder", "right")
     left_shoulder_id = get_joint_id("shoulder", "left")
     right_shoulder_data = get_joint_data(pitch, right_shoulder_id)
@@ -393,7 +387,7 @@ def get_trunk_rotation(pitch:Pitch) -> pd.DataFrame:
     return theta
 
 
-def get_hand_path(pitch:Pitch, side:str) -> pd.DataFrame:
+def get_hand_path(pitch: Pitch, side: str) -> pd.DataFrame:
     shoulder_id = get_joint_id("shoulder", side)
     wrist_id = get_joint_id("wrist", side)
     shoulder_data = get_joint_data(pitch, shoulder_id)
@@ -439,10 +433,7 @@ def get_hand_path(pitch:Pitch, side:str) -> pd.DataFrame:
     return theta
 
 
-# %%
-
-
-def get_metrics(player:Player) -> None:
+def get_metrics(player: Player) -> None:
     arm = get_throwing_hand(player)
     if arm == "right":
         leg = "left"
@@ -452,14 +443,15 @@ def get_metrics(player:Player) -> None:
     print(f"Calculating metrics for", player.name, "...\n")
 
     num_pitches = np.size(player.pitches)
-    num_frames = np.shape(player.pitches[0].positions)[0]
+    # num_frames = np.shape(player.pitches[0].positions)[0]
+    num_frames = len(player.pitches[0].timeStamps)
     hold_theta = pd.DataFrame(np.zeros([num_frames, 6]))
     hold_omega = pd.DataFrame(np.zeros([num_frames, 6]))
     for i in range(num_pitches):
         pitch = player.pitches[i]
         dt = get_framerate(pitch)
 
-        print(f"Working on pitch", i + 1)
+        # print(f"Working on pitch", i + 1)
         metrics_theta = {
             "knee": get_knee_angle(pitch, leg),
             "elbow": get_elbow_angle(pitch, arm),
@@ -487,7 +479,7 @@ def get_metrics(player:Player) -> None:
                 "frames from",
                 player.name,
                 "pitch",
-                i,
+                i + 1,
                 "\n",
             )
             metrics_theta = metrics_theta.iloc[diff:, :].reset_index(drop=True)
@@ -505,3 +497,18 @@ def get_metrics(player:Player) -> None:
     player.metrics = [hold_theta, hold_omega]
 
     return
+
+
+# %%
+def main() -> None:
+
+    player1 = get_data("../player1")
+    player2 = get_data("../player2")
+
+    get_metrics(player1)
+    get_metrics(player2)
+
+
+if __name__ == "__main__":
+    main()
+    # cProfile.run('main()', sort = 'ncalls')
