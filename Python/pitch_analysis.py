@@ -42,8 +42,12 @@ def get_data(directory: str) -> Player:
         file_path = files[file]
         try:
             data = pd.read_json(file_path)
-        except Exception:
-            print(f"Error reading file: {file_path}")
+        except FileNotFoundError:
+            print(f"File not found:  {file_path}")
+        except pd.errors.JSONDecodeError:
+            print(f"JSON decoding error in file: {file_path}")
+        except Exception as e:
+            print(f"Error reading file {file_path}: {str(e)}")
 
         frames = data["skeletalData"]["frames"]
         time_stamp = [str(frame["timeStamp"]) for frame in frames]
@@ -105,8 +109,10 @@ def get_joint_id(joint: list[str] | str, side: str) -> list[int] | int:
 
             joint_id.append(joint_lookup[this_joint])
 
-        except Exception:
+        except KeyError:
             print(f"Joint {joint} and side {side} combination not found")
+        except Exception:
+            print("Error attempting to find joint grouping")
 
     return joint_id
 
@@ -131,6 +137,10 @@ def get_throwing_hand(player: Player) -> str:
             side = "right"
         elif left_data.iloc[0, 1] > right_data.iloc[0, 1]:
             side = "left"
+    except IndexError:
+        print(f"Could not determine pitching hand for {player.name} due to index error.")
+    except ValueError:
+        print(f"Could not determine pitching hand for {player.name} due to value error.")
     except Exception:
         print(f"Could not determine pitching hand for {player.name}")
 
