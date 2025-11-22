@@ -1,6 +1,5 @@
 # %%
 using JSON, DataFrames, LinearAlgebra, DSP
-# using Match
 
 # %%
 @kwdef mutable struct Pitch
@@ -34,20 +33,6 @@ function get_data(directory::String)::Player
         positions = DataFrame[]
         num_joints = length(data["skeletalData"]["frames"][1]["positions"][1]["joints"])
         
-        # for j ∈ 1:num_frames
-        #
-        #     hold = DataFrame(x=Float64[], y=Float64[], z=Float64[])
-        #     
-        #     for k ∈ 1:num_joints
-        #         x = data["skeletalData"]["frames"][j]["positions"][1]["joints"][k]["x"]
-        #         y = data["skeletalData"]["frames"][j]["positions"][1]["joints"][k]["y"]
-        #         z = data["skeletalData"]["frames"][j]["positions"][1]["joints"][k]["z"]
-        #         push!(hold, [x y z])
-        #
-        #     end
-        #
-        #     push!(positions, hold)
-        # end
         for j ∈ 1:num_joints
 
             hold = DataFrame(x=Float64[], y=Float64[], z=Float64[])
@@ -183,7 +168,6 @@ end
 
 
 function get_joint_data(pitch::Pitch, joint::Int)::DataFrame
-    # num_frames = length(pitch.∆t)
     joint_data = pitch.positions[joint]
 
 end
@@ -213,12 +197,6 @@ end
 function get_joint_group(joint::String)::Vector{String}
     extra = ""
 
-    # @match joint begin
-    #     "elbow" => proximal = "shoulder", distal = "wrist"
-    #     "shoulder" => proximal = "neck", distal = "elbow", extra = "nose"
-    #     "knee" => proximal = "hip", distal = "ankle"
-    #     _ => println("Joint grouping not available for ", joint)
-    # end
     if joint == "elbow"
         proximal = "shoulder"
         distal = "wrist"
