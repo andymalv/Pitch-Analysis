@@ -15,6 +15,8 @@ A program, written in multiple languages, to intake and process kinematic data, 
     - Signal Processing Toolbox
 * Python
     - listed in 'requirements.txt'
+* Julia
+    - listed in 'Project.toml'
 
 ### Executing program
 
@@ -25,5 +27,4 @@ As written, the code expects the data to be in .json files one directory above t
 * Add kinetic analysis
 * More translations
     - R
-    - Julia
     - C/C++
