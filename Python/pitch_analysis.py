@@ -1,10 +1,8 @@
 # %%
-import cProfile
 import os
 from dataclasses import dataclass
 from typing import List
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from line_profiler import profile
@@ -14,7 +12,7 @@ from scipy import signal
 # %%
 @dataclass
 class Pitch:
-    positions: List[pd.DataFrame]
+    positions: pd.DataFrame
     timeStamps: List[str]
     metrics: List[pd.DataFrame]
 
@@ -30,7 +28,7 @@ class Player:
 @profile
 def get_data(directory: str) -> Player:
     name = directory[3:]
-    print(f"Gathering data for", name, "...\n")
+    print(f"Gathering data for {name}...\n")
 
     files: list[str] = []
     for file in os.listdir(directory):
@@ -41,13 +39,11 @@ def get_data(directory: str) -> Player:
     pitches: list[Pitch] = []
 
     for file in range(num_files):
+        file_path = files[file]
         try:
-            file_path = files[file]
             data = pd.read_json(file_path)
-        except:
-            print(f"Error reading file: ", file_path)
-
-        num_frames = np.size(data["skeletalData"]["frames"])
+        except Exception:
+            print(f"Error reading file: {file_path}")
 
         frames = data["skeletalData"]["frames"]
         time_stamp = [str(frame["timeStamp"]) for frame in frames]
@@ -63,9 +59,8 @@ def get_data(directory: str) -> Player:
     return player
 
 
-def get_joint_id(joint: list[str], side: str) -> list[int]:
-
-    if type(joint) == str:
+def get_joint_id(joint: list[str] | str, side: str) -> list[int] | int:
+    if isinstance(joint, str):
         joint = [joint]
 
     joint_lookup = {
@@ -110,15 +105,14 @@ def get_joint_id(joint: list[str], side: str) -> list[int]:
 
             joint_id.append(joint_lookup[this_joint])
 
-        except:
-            print(f"Joint ", joint, " and side ", side, " combination not found")
+        except Exception:
+            print(f"Joint {joint} and side {side} combination not found")
 
     return joint_id
 
 
 @profile
 def get_joint_data(pitch: Pitch, joint: int) -> pd.DataFrame:
-    num_frames = len(pitch.timeStamps)
     joint_data = pitch.positions.loc[joint].reset_index(drop=True)
 
     return joint_data
@@ -131,13 +125,14 @@ def get_throwing_hand(player: Player) -> str:
     right_data = get_joint_data(player.pitches[0], right_id)
     left_data = get_joint_data(player.pitches[0], left_id)
 
+    side = ""
     try:
         if right_data.iloc[0, 1] > left_data.iloc[0, 1]:
             side = "right"
         elif left_data.iloc[0, 1] > right_data.iloc[0, 1]:
             side = "left"
-    except:
-        print("Could not determine pitching hand for ", player.name)
+    except Exception:
+        print(f"Could not determine pitching hand for {player.name}")
 
     return side
 
@@ -157,7 +152,7 @@ def get_joint_group(joint: str) -> list[str]:
             proximal = "hip"
             distal = "ankle"
         case _:
-            print("Joint grouping not available for ", joint)
+            print(f"Joint grouping not available for {joint}")
 
     if extra == "":
         joint_group = [proximal, joint, distal]
@@ -167,7 +162,7 @@ def get_joint_group(joint: str) -> list[str]:
     return joint_group
 
 
-def get_framerate(pitch: str) -> float:
+def get_framerate(pitch: Pitch) -> float:
     first = float(pitch.timeStamps[0][-10:-1])
     last = float(pitch.timeStamps[-1][-10:-1])
 
@@ -300,12 +295,12 @@ def get_shoulder_rotation(pitch: Pitch, side: str) -> pd.DataFrame:
 
 @profile
 def get_segment_rotation(
-    point1_data: pd.DataFrame, point2_data: pd.DataFrame, rotation_axis: str
+    point1_data: pd.DataFrame, point2_data: pd.DataFrame, axis_of_rotation: str
 ) -> pd.DataFrame:
     point1_data = np.array(point1_data)
     point2_data = np.array(point2_data)
 
-    match rotation_axis.lower():
+    match axis_of_rotation.lower():
         case "x":
             rotation_axis = [1, 0, 0]
         case "y":
@@ -313,7 +308,7 @@ def get_segment_rotation(
         case "z":
             rotation_axis = [0, 0, 1]
         case _:
-            print(f"Error: invalid axis input: ", rotation_axis)
+            print(f"Error: invalid axis input: {axis_of_rotation}")
 
     num_frames = np.shape(point1_data)[0]
     theta = np.zeros(num_frames)
@@ -418,7 +413,6 @@ def get_hand_path(pitch: Pitch, side: str) -> pd.DataFrame:
             path_current = path_current / np.linalg.norm(path_current)
 
             dot_product = np.dot(path_prev, path_current)
-            # cross_product = np.cross(path_prev, path_current)
             cross_product = (
                 path_prev[0] * path_current[1] - path_prev[1] * path_current[0]
             )
@@ -440,10 +434,9 @@ def get_metrics(player: Player) -> None:
     elif arm == "left":
         leg = "right"
 
-    print(f"Calculating metrics for", player.name, "...\n")
+    print(f"Calcualting metrics for {player.name}...\n")
 
     num_pitches = np.size(player.pitches)
-    # num_frames = np.shape(player.pitches[0].positions)[0]
     num_frames = len(player.pitches[0].timeStamps)
     hold_theta = pd.DataFrame(np.zeros([num_frames, 6]))
     hold_omega = pd.DataFrame(np.zeros([num_frames, 6]))
@@ -451,7 +444,6 @@ def get_metrics(player: Player) -> None:
         pitch = player.pitches[i]
         dt = get_framerate(pitch)
 
-        # print(f"Working on pitch", i + 1)
         metrics_theta = {
             "knee": get_knee_angle(pitch, leg),
             "elbow": get_elbow_angle(pitch, arm),
@@ -474,13 +466,7 @@ def get_metrics(player: Player) -> None:
         if np.shape(metrics_theta)[0] != np.shape(hold_theta)[0]:
             diff = np.shape(metrics_theta)[0] - np.shape(hold_theta)[0]
             print(
-                f"Frames mismatch: removing",
-                diff,
-                "frames from",
-                player.name,
-                "pitch",
-                i + 1,
-                "\n",
+                f"Frames mismatch: removing {diff} frames from {player.name} pitch {i + 1}\n"
             )
             metrics_theta = metrics_theta.iloc[diff:, :].reset_index(drop=True)
             metrics_omega = metrics_omega.iloc[diff:, :].reset_index(drop=True)
@@ -501,7 +487,6 @@ def get_metrics(player: Player) -> None:
 
 # %%
 def main() -> None:
-
     player1 = get_data("../player1")
     player2 = get_data("../player2")
 
@@ -511,4 +496,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    # cProfile.run('main()', sort = 'ncalls')
