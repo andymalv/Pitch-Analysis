@@ -22,6 +22,13 @@ A program, written in multiple languages, to intake and process kinematic data, 
 
 As written, the code expects the data to be in .json files one directory above the current working directory. Change as needed.
 
+## Current Work
+* Python:
+    - Implement plotting functionality
+* Julia:
+    - Fix atan2 bug by unwrapping data for torso+pelvis rotation
+    - Implement plotting function(s)
+
 ## Future Plans
 
 * Add kinetic analysis
