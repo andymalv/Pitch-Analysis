@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["andymalv <73136243+andymalv@users.noreply.github.com>"]
 
 [deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Debugger = "31a5f54b-26ea-5ae9-a837-f05ce5417438"
@@ -12,6 +13,7 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
+CairoMakie = "0.15.7"
 DSP = "0.8.4"
 DataFrames = "1.8.1"
 Debugger = "0.7.16"

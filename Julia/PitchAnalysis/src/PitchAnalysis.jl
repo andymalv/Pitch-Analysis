@@ -7,6 +7,8 @@ using LinearAlgebra
 using DSP
 using Infiltrator
 using Debugger
+using CairoMakie
+CairoMakie.activate!()
 
 export get_data, get_metrics, get_joint_ids, get_framerate,
     get_hand_path, get_joint_data, get_knee_angle, get_elbow_angle,
@@ -24,8 +26,8 @@ end
 @kwdef mutable struct Player
     name::String
     pitches::Vector{Pitch}
-    # metrics::Vector{DataFrame}
-    metrics
+    metrics::Vector{DataFrame}
+    # metrics
 end
 
 # %%
@@ -513,27 +515,10 @@ function get_metrics(player)
             get_trunk_rotation(pitch),
             get_hand_path(pitch, arm)
         )
-        # ω_metrics = [gradient(Θ_metrics[:, j], ∆t) for j in 1:num_metrics]
         ω_metrics = similar(Θ_metrics)
         for j in 1:num_metrics
             ω_metrics[:, j] = gradient(Θ_metrics[:, j], ∆t)
         end
-        # Θ_metrics = Dict(
-        #     "knee" => get_knee_angle(pitch, leg),
-        #     "elbow" => get_elbow_angle(pitch, arm),
-        #     "shoulder" => get_shoulder_rotation(pitch, arm),
-        #     "pelvis" => get_pelvis_rotation(pitch),
-        #     "trunk" => get_trunk_rotation(pitch),
-        #     "hand" => get_hand_path(pitch, arm)
-        # )
-        # ω_metrics = Dict(
-        #     "knee" => gradient(Θ_metrics["knee"], ∆t),
-        #     "elbow" => gradient(Θ_metrics["elbow"], ∆t),
-        #     "shoulder" => gradient(Θ_metrics["shoulder"], ∆t),
-        #     "pelvis" => gradient(Θ_metrics["pelvis"], ∆t),
-        #     "trunk" => gradient(Θ_metrics["trunk"], ∆t),
-        #     "hand" => gradient(Θ_metrics["hand"], ∆t)
-        # )
 
         if size(Θ_metrics)[1] != size(Θ_hold)[1]
             diff = size(Θ_metrics)[1] - size(Θ_hold)[1]
@@ -554,11 +539,16 @@ function get_metrics(player)
 
     end
 
-
+    col_names = ["Knee", "Elbow", "Shoulder", "Pelvis", "Trunk", "Hand Path"]
+    Θ_hold = DataFrame(Θ_hold, col_names)
+    ω_hold = DataFrame(ω_hold, col_names)
     player.metrics = [Θ_hold, ω_hold]
     return player
 end
 
+# %%
+function plot_metrics(player)
 
+end
 # %%
 end # module PitchAnalysis
