@@ -1,37 +1,14 @@
-# Baseball Pitch Analysis
+# Baseball Pitching Analysis
 
-Simple analysis of baseball pitch data.
+A directory of multiple projects working with baseball biomechanics data. 
 
 ## Description
 
-A program, written in multiple languages, to intake and process kinematic data, then output plots.
+The purpose of this repo is to show my ability to work with baseball biomechanics data from different sources, as well as to practice calculating inverse kinematics and dynamics.
+The [Hawkeye]() directory uses data taken from a Hawkeye system in a stadium.
+The [Lab]() directory uses data taken in a lab setting, specifically from the [Driveline Open Biomechanics](https://github.com/drivelineresearch/openbiomechanics/tree/main) dataset.
 
-## Getting Started
+## Acknowledgments
 
-### Dependencies
-
-* MATLAB
-    - a MATLAB license
-    - Signal Processing Toolbox
-* Python
-    - listed in 'requirements.txt'
-* Julia
-    - listed in 'Project.toml'
-
-### Executing program
-
-As written, the code expects the data to be in .json files one directory above the current working directory. Change as needed.
-
-## Current Work
-* Python:
-    - Implement plotting functionality
-* Julia:
-    - Fix atan2 bug by unwrapping data for torso+pelvis rotation
-    - Implement plotting function(s)
-
-## Future Plans
-
-* Add kinetic analysis
-* More translations
-    - R
-    - C/C++
+A big thanks to [Driveline](https://www.drivelinebaseball.com/) for putting the data up for public use.
+Also [Open Biomechanics](https://www.openbiomechanics.org/) for archiving public biomechanics data sets.
