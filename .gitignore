@@ -1,0 +1,6 @@
+player*
+*venv*
+profile*
+Manifest.toml
+*.json
+*.csv
