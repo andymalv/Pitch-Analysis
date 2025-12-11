@@ -1,10 +1,8 @@
-import os
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import List
 
 import numpy as np
 import pandas as pd
-from scipy import signal
 
 
 # %%
@@ -23,7 +21,7 @@ class Pitch:
     lead_knee: pd.DataFrame
     lead_hip: pd.DataFrame
     glove_elbow: pd.DataFrame
-    glove_han: pd.DataFrame
+    glove_hand: pd.DataFrame
     glove_shoulder: pd.DataFrame
     glove_wrist: pd.DataFrame
     thorax_ap: pd.DataFrame
@@ -62,7 +60,6 @@ def get_data(file: str) -> List[Session]:
         timing_metrics = data[timing_cols].iloc[0, :]
         positions = data.drop(columns=timing_cols).iloc[:, 2:]
         positions = parse_joint_data(positions)
-        # pitch = Pitch(positions, time_stamps, [], timing_metrics)
         pitch = Pitch
         pitch = pass_to_struct(pitch, positions, time_stamps, timing_metrics)
 
@@ -79,7 +76,6 @@ def get_data(file: str) -> List[Session]:
     return sessions
 
 
-# %%
 def parse_joint_data(data: List[pd.DataFrame]) -> List[pd.DataFrame]:
     joints = data.columns
     last_joint = joints[0][:-2]
@@ -114,7 +110,7 @@ def pass_to_struct(
     positions: List[pd.DataFrame],
     time_stamps: List[float],
     timing_metrics: List[float],
-) -> Pitch:
+):
     pitch.rear_ankle = positions[0].reset_index(drop=True)
     pitch.rear_hip = positions[1].reset_index(drop=True)
     pitch.elbow = positions[2].reset_index(drop=True)
@@ -137,7 +133,7 @@ def pass_to_struct(
     pitch.time_stamps = time_stamps.reset_index(drop=True)
     pitch.timing_metrics = timing_metrics.reset_index(drop=True)
 
-    return pitch
+    return
 
 
 # %%
@@ -150,18 +146,19 @@ def get_framerate(pitch: Pitch) -> float:
     return framerate
 
 
-def get_joint_angle(
-    proximal=pd.DataFrame, joint=pd.DataFrame, distal=pd.DataFrame
-) -> pd.DataFrame:
+# %%
+def calculate_joint_angle(
+    proximal: np.ndarray, joint: np.ndarray, distal: np.ndarray
+) -> np.ndarray:
     num_frames = np.shape(joint)[0]
     theta = np.zeros([num_frames])
 
-    proximal_segment = proximal.iloc[:, :3] - joint.iloc[:, :3]
-    distal_segment = joint.iloc[:, :3] - distal.iloc[:, :3]
+    proximal_segment = proximal - joint
+    distal_segment = joint - distal
 
     for i in range(num_frames):
-        proximal_vector = proximal_segment.iloc[i, :]
-        distal_vector = distal_segment.iloc[i, :]
+        proximal_vector = proximal_segment[i, :]
+        distal_vector = distal_segment[i, :]
 
         theta[i] = np.atan2(
             np.linalg.norm(np.cross(proximal_vector, distal_vector)),
@@ -169,46 +166,31 @@ def get_joint_angle(
         )
 
     theta = np.rad2deg(theta)
-    theta = pd.DataFrame(theta)
-    theta.columns = ["theta"]
 
     return theta
 
 
-def get_elbow_angle(pitch: Pitch):
-    shoulder = pitch.shoulder
-    elbow = pitch.elbow
-    wrist = pitch.wrist
+def get_angle_metrics(
+    proximal: pd.DataFrame, joint: pd.DataFrame, distal: pd.DataFrame, dt: float
+) -> pd.DataFrame:
+    proximal = np.array(proximal[["x", "y", "z"]])
+    joint = np.array(joint[["x", "y", "z"]])
+    distal = np.array(distal[["x", "y", "z"]])
 
-    theta = get_joint_angle(shoulder, elbow, wrist)
+    theta = calculate_joint_angle(proximal, joint, distal)
+    omega = np.gradient(theta, dt, axis=0)
+    alpha = np.gradient(omega, dt, axis=0)
 
-    pitch.elbow = pd.concat([pitch.elbow, pd.Series(theta)], axis=1)
+    result = pd.DataFrame([theta, omega, alpha]).T
+    result.columns = ["theta", "omega", "alpha"]
 
-
-def get_lead_knee_angle(pitch: Pitch):
-    hip = pitch.lead_hip
-    knee = pitch.lead_knee
-    ankle = pitch.lead_ankle
-
-    theta = get_joint_angle(hip, knee, ankle)
-
-    pitch.lead_knee = pd.concat([pitch.lead_knee, pd.Series(theta)], axis=1)
-
-
-def get_shoulder_rotation(pitch: Pitch):
-    thorax = pitch.thorax_prox
-    shoulder = pitch.shoulder
-    elbow = pitch.elbow
-
-    theta = get_joint_angle(thorax, shoulder, elbow)
-
-    pitch.shoulder = pd.concat([pitch.shoulder, pd.Series(theta)], axis=1)
+    return result
 
 
 # %%
-def get_segment_rotation(
-    point1: pd.DataFrame, point2: pd.DataFrame, axis_of_rotation: str
-) -> pd.DataFrame:
+def calculate_segment_rotation(
+    point1: np.ndarray, point2: np.ndarray, axis_of_rotation: str
+) -> np.ndarray:
     match axis_of_rotation.lower():
         case "x":
             rotation_axis = [1, 0, 0]
@@ -218,9 +200,6 @@ def get_segment_rotation(
             rotation_axis = [0, 0, 1]
         case _:
             print(f"Error: invalid axis input: {axis_of_rotation}")
-
-    point1 = np.array(point1)
-    point2 = np.array(point2)
 
     num_frames = np.shape(point1)[0]
     theta = np.zeros(num_frames)
@@ -244,77 +223,36 @@ def get_segment_rotation(
         start_axis2 = current_axis2
 
     theta = np.rad2deg(theta)
-    theta = pd.DataFrame(theta)
-    theta.columns = ["theta"]
 
     return theta
 
 
-def get_pelvis_rotation(pitch: Pitch):
-    lead_hip = pitch.lead_hip
-    rear_hip = pitch.rear_hip
+def get_rotation_metrics(
+    lead: pd.DataFrame, rear: pd.DataFrame, axis_of_rotation: str, dt: float
+) -> pd.DataFrame:
+    lead = np.array(lead[["x", "y", "z"]])
+    rear = np.array(rear[["x", "y", "z"]])
 
-    theta = get_segment_rotation(lead_hip, rear_hip, "z")
-    # theta.columns = ["theta"]
+    theta = calculate_segment_rotation(lead, rear, axis_of_rotation)
+    omega = np.gradient(theta, dt, axis=0)
+    alpha = np.gradient(omega, dt, axis=0)
 
-    pitch.pelvis = theta
+    result = pd.DataFrame([theta, omega, alpha]).T
+    result.columns = ["theta", "omega", "alpha"]
 
-
-def get_trunk_rotation(pitch: Pitch):
-    lead_shoulder = pitch.glove_shoulder
-    rear_shoulder = pitch.shoulder[["x", "y", "z"]]
-
-    theta = get_segment_rotation(lead_shoulder, rear_shoulder, "z")
-    # theta.columns = ["theta"]
-
-    pitch.trunk = theta
-
-
-# %%
-def get_gradient(data: pd.DataFrame, dt: float) -> pd.DataFrame:
-    # if np.shape(data)[1] == 1:
-    #     gradient = np.gradient(data, dt)
-    # else:
-    #     gradient = np.gradient(data.iloc[:, -1], dt)
-    # gradient = np.gradient(data.iloc[:, -1], dt)
-    gradient = pd.DataFrame(np.gradient(data, dt))
-
-    variable = data.columns[0]
-    match variable:
-        case "theta":
-            col = "omega"
-        case "omega":
-            col = "alpha"
-        case "v":
-            col = "a"
-
-    gradient.columns = [col]
-
-    # out = pd.concat([data, pd.Series(gradient)], axis=1)
-
-    return gradient
+    return result
 
 
 # %%
 def get_metrics(pitch: Pitch):
-    pitch.elbow = pd.concat(
-        [pitch.elbow, get_joint_angle(pitch.shoulder, pitch.elbow, pitch.wrist)], axis=1
-    )
-    pitch.elbow = pd.concat([pitch.elbow, get_gradient(pitch.elbow[["theta"]])], axis=1)
+    dt = get_framerate(pitch)
+
     pitch.lead_knee = pd.concat(
         [
             pitch.lead_knee,
-            get_joint_angle(pitch.lead_hip, pitch.lead_knee, pitch.lead_ankle),
-        ],
-        axis=1,
-    )
-    pitch.shoulder = pd.concat(
-        [
-            pitch.shoulder,
-            get_joint_angle(pitch.thorax_prox, pitch.shoulder, pitch.elbow),
+            get_angle_metrics(pitch.lead_hip, pitch.lead_knee, pitch.lead_ankle, dt),
         ],
         axis=1,
     )
 
-    pitch.pelvis = get_segment_rotation(pitch.lead_hip, pitch.rear_hip, "z")
-    pitch.trunk = get_segment_rotation(pitch.glove_shoulder, pitch.shoulder, "z")
+    pitch.pelvis = get_rotation_metrics(pitch.lead_hip, pitch.rear_hip, "z", dt)
