@@ -11,25 +11,26 @@ class Pitch:
     time_stamps: List[float]
     timing_metrics: List[float]
     rear_ankle: pd.DataFrame
-    read_knee: pd.DataFrame
     rear_hip: pd.DataFrame
     elbow: pd.DataFrame
     hand: pd.DataFrame
+    read_knee: pd.DataFrame
     shoulder: pd.DataFrame
     wrist: pd.DataFrame
     lead_ankle: pd.DataFrame
-    lead_knee: pd.DataFrame
     lead_hip: pd.DataFrame
     glove_elbow: pd.DataFrame
     glove_hand: pd.DataFrame
+    lead_knee: pd.DataFrame
     glove_shoulder: pd.DataFrame
     glove_wrist: pd.DataFrame
     thorax_ap: pd.DataFrame
     thorax_dist: pd.DataFrame
     thorax_prox: pd.DataFrame
     CoM: pd.DataFrame
-    trunk: pd.DataFrame
+    torso: pd.DataFrame
     pelivs: pd.DataFrame
+    torso_pelvis: pd.DataFrame
 
 
 @dataclass
@@ -41,7 +42,7 @@ class Session:
 # %%
 def get_data(file: str) -> List[Session]:
     df = pd.read_csv(file).groupby(["session_pitch"])
-    pitch_ids = df.groups.keys()
+    pitch_ids = list(df.groups.keys())
     pitches: List[Pitch] = []
     sessions: List[Session] = []
     timing_cols = [
@@ -53,18 +54,18 @@ def get_data(file: str) -> List[Session]:
         "MIR_time",
     ]
 
-    session_id = list(pitch_ids)[0][:-2]
+    session_id = pitch_ids[0][:-2]
     for pitch_id in pitch_ids:
         data = df.get_group((pitch_id,))
-        time_stamps = data["time"]
-        timing_metrics = data[timing_cols].iloc[0, :]
-        positions = data.drop(columns=timing_cols).iloc[:, 2:]
+        time_stamps = data["time"].reset_index(drop=True)
+        timing_metrics = data[timing_cols].iloc[0, :].reset_index(drop=True)
+        positions = data.drop(columns=timing_cols).iloc[:, 2:].reset_index(drop=True)
         positions = parse_joint_data(positions)
-        pitch = Pitch
-        pitch = pass_to_struct(pitch, positions, time_stamps, timing_metrics)
+        pitch = pass_to_struct(positions, time_stamps, timing_metrics)
 
         if pitch_id[:-2] == session_id:
             pitches.append(pitch)
+            pitch = None
         else:
             session = Session(pitches, session_id)
             sessions.append(session)
@@ -72,6 +73,7 @@ def get_data(file: str) -> List[Session]:
             pitches = []
             session_id = pitch_id[:-2]
             pitches.append(pitch)
+            pitch = None
 
     return sessions
 
@@ -106,34 +108,36 @@ def parse_joint_data(data: List[pd.DataFrame]) -> List[pd.DataFrame]:
 
 
 def pass_to_struct(
-    pitch: Pitch,
     positions: List[pd.DataFrame],
     time_stamps: List[float],
     timing_metrics: List[float],
-):
-    pitch.rear_ankle = positions[0].reset_index(drop=True)
-    pitch.rear_hip = positions[1].reset_index(drop=True)
-    pitch.elbow = positions[2].reset_index(drop=True)
-    pitch.hand = positions[3].reset_index(drop=True)
-    pitch.rear_knee = positions[4].reset_index(drop=True)
-    pitch.shoulder = positions[5].reset_index(drop=True)
-    pitch.wrist = positions[6].reset_index(drop=True)
-    pitch.lead_ankle = positions[7].reset_index(drop=True)
-    pitch.lead_hip = positions[8].reset_index(drop=True)
-    pitch.glove_elbow = positions[9].reset_index(drop=True)
-    pitch.glove_hand = positions[10].reset_index(drop=True)
-    pitch.lead_knee = positions[11].reset_index(drop=True)
-    pitch.glove_shoulder = positions[12].reset_index(drop=True)
-    pitch.glove_wrist = positions[13].reset_index(drop=True)
-    pitch.thorax_ap = positions[14].reset_index(drop=True)
-    pitch.throax_dist = positions[15].reset_index(drop=True)
-    pitch.thorax_prox = positions[16].reset_index(drop=True)
-    pitch.CoM = positions[17].reset_index(drop=True)
+) -> Pitch:
+    pitch = Pitch(
+        time_stamps,
+        timing_metrics,
+        positions[0],
+        positions[1],
+        positions[2],
+        positions[3],
+        positions[4],
+        positions[5],
+        positions[6],
+        positions[7],
+        positions[8],
+        positions[9],
+        positions[10],
+        positions[11],
+        positions[12],
+        positions[13],
+        positions[14],
+        positions[15],
+        positions[16],
+        positions[17],
+        [],
+        [],
+    )
 
-    pitch.time_stamps = time_stamps.reset_index(drop=True)
-    pitch.timing_metrics = timing_metrics.reset_index(drop=True)
-
-    return
+    return pitch
 
 
 # %%
@@ -244,7 +248,7 @@ def get_rotation_metrics(
 
 
 # %%
-def get_metrics(pitch: Pitch):
+def calculate_metrics(pitch: Pitch) -> Pitch:
     dt = get_framerate(pitch)
 
     pitch.lead_knee = pd.concat(
@@ -256,3 +260,28 @@ def get_metrics(pitch: Pitch):
     )
 
     pitch.pelvis = get_rotation_metrics(pitch.lead_hip, pitch.rear_hip, "z", dt)
+
+    return pitch
+
+
+def get_metrics(df: List[Session]) -> List[Session]:
+    num_sessions = len(df)
+
+    for session in range(num_sessions):
+        num_pitches = len(df[session].pitches)
+
+        for pitch in range(num_pitches):
+            this_pitch = df[session].pitches[pitch]
+            this_pitch = calculate_metrics(this_pitch)
+
+    return df
+
+
+# %%
+def main():
+    df = get_data("landmarks.csv")
+    df = get_metrics(df)
+
+
+if __name__ == "__main__":
+    main()
