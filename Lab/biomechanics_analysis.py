@@ -30,7 +30,6 @@ class Pitch:
     CoM: pd.DataFrame
     torso: pd.DataFrame
     pelivs: pd.DataFrame
-    torso_pelvis: pd.DataFrame
 
 
 @dataclass
