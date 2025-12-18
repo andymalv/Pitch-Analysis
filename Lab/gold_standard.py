@@ -4,6 +4,8 @@ from typing import List
 import numpy as np
 import pandas as pd
 
+# from biomechanics_analysis import Session
+
 
 # %%
 @dataclass
@@ -32,8 +34,8 @@ class Session:
 
 
 # %%
-def get_data(file: str) -> List[Session]:
-    df = pd.read_csv(file).groupby(["session_pitch"])
+def get_data(path: str) -> List[Session]:
+    df = pd.read_csv(path).groupby(["session_pitch"])
     pitch_ids = list(df.groups.keys())
     pitches: List[Pitch] = []
     sessions: List[Session] = []
@@ -47,14 +49,14 @@ def get_data(file: str) -> List[Session]:
         "MIR_time",
     ]
 
-    session_id = pitch_ids[0][:-2]
+    session_id = str(pitch_ids[0])[:-2]
     for pitch_id in pitch_ids:
         data = df.get_group((pitch_id,))
-        angles = data.drop(columns=timing_cols).reset_index(drop=True)
+        angles = pd.DataFrame(data.drop(columns=timing_cols).reset_index(drop=True))
         angles = parse_joint_angles(angles)
         pitch = pass_to_struct(angles)
 
-        if pitch_id[:-2] == session_id:
+        if str(pitch_id)[:-2] == session_id:
             pitches.append(pitch)
             pitch = None
         else:
@@ -62,14 +64,14 @@ def get_data(file: str) -> List[Session]:
             sessions.append(session)
 
             pitches = []
-            session_id = pitch_id[:-2]
+            session_id = str(pitch_id)[:-2]
             pitches.append(pitch)
             pitch = None
 
     return sessions
 
 
-def parse_joint_angles(data: List[pd.DataFrame]) -> List[pd.DataFrame]:
+def parse_joint_angles(data: pd.DataFrame) -> List[pd.DataFrame]:
     joints = data.columns
     last_joint = joints[0][:-2]
     joint_data = pd.DataFrame()
