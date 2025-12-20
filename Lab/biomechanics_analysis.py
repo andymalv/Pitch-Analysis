@@ -8,8 +8,8 @@ import pandas as pd
 # %%
 @dataclass
 class Pitch:
-    time_stamps: List[float]
-    timing_metrics: List[float]
+    time_stamps: pd.Series
+    timing_metrics: pd.DataFrame
     rear_ankle: pd.DataFrame
     rear_hip: pd.DataFrame
     elbow: pd.DataFrame
@@ -58,7 +58,6 @@ def get_data(path: str) -> List[Session]:
     for pitch_id in pitch_ids:
         data = df.get_group((pitch_id,))
         time_stamps = data["time"].reset_index(drop=True)
-        # timing_metrics = data[timing_cols].iloc[0, :].reset_index(drop=True)
         timing_metrics = data[timing_cols].iloc[0, :].T
         timing_metrics.columns = timing_cols
         positions = data.drop(columns=timing_cols).iloc[:, 2:].reset_index(drop=True)
@@ -111,8 +110,8 @@ def parse_joint_data(data: pd.DataFrame) -> List[pd.DataFrame]:
 
 def pass_to_struct(
     positions: List[pd.DataFrame],
-    time_stamps: List[float],
-    timing_metrics: List[float],
+    time_stamps: pd.Series,
+    timing_metrics: pd.DataFrame,
 ) -> Pitch:
     pitch = Pitch(
         time_stamps,
