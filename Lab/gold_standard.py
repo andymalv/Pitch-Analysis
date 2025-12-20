@@ -24,7 +24,7 @@ class Pitch:
     glove_shoulder: pd.DataFrame
     glove_wrist: pd.DataFrame
     torso: pd.DataFrame
-    torso_pelvis: pd.DataFrame
+    # torso_pelvis: pd.DataFrame # need to figure out why this isn't being passed
 
 
 @dataclass
@@ -35,11 +35,13 @@ class Session:
 
 # %%
 def get_data(path: str) -> List[Session]:
-    df = pd.read_csv(path).groupby(["session_pitch"])
+    with open(path, "r") as file:
+        df = pd.read_csv(file).groupby(["session_pitch"])
     pitch_ids = list(df.groups.keys())
     pitches: List[Pitch] = []
     sessions: List[Session] = []
-    timing_cols = [
+    cut_cols = [
+        "session_pitch",
         "time",
         "pkh_time",
         "fp_10_time",
@@ -52,7 +54,7 @@ def get_data(path: str) -> List[Session]:
     session_id = str(pitch_ids[0])[:-2]
     for pitch_id in pitch_ids:
         data = df.get_group((pitch_id,))
-        angles = pd.DataFrame(data.drop(columns=timing_cols).reset_index(drop=True))
+        angles = pd.DataFrame(data.drop(columns=cut_cols).reset_index(drop=True))
         angles = parse_joint_angles(angles)
         pitch = pass_to_struct(angles)
 
@@ -91,7 +93,7 @@ def parse_joint_angles(data: pd.DataFrame) -> List[pd.DataFrame]:
             joint_data = pd.concat([joint_data, data[joint]], axis=1)
 
             # b/c it won't append to angles b/c it's at the end
-            if this_joint == "centerofmass" and np.shape(joint_data)[1] == 3:
+            if this_joint == "torso_pelvis" and np.shape(joint_data)[1] == 3:
                 joint_data.columns = [
                     col.replace(last_joint, "theta") for col in joint_data.columns
                 ]
@@ -118,7 +120,7 @@ def pass_to_struct(
         angles[11],
         angles[12],
         angles[13],
-        angles[14],
+        # angles[14], # need to figure out why this isn't getting passed
     )
 
     return pitch

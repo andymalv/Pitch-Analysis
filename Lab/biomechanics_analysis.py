@@ -39,8 +39,9 @@ class Session:
 
 
 # %%
-def get_data(file: str) -> List[Session]:
-    df = pd.read_csv(file).groupby(["session_pitch"])
+def get_data(path: str) -> List[Session]:
+    with open(path, "r") as file:
+        df = pd.read_csv(file).groupby(["session_pitch"])
     pitch_ids = list(df.groups.keys())
     pitches: List[Pitch] = []
     sessions: List[Session] = []
@@ -53,16 +54,18 @@ def get_data(file: str) -> List[Session]:
         "MIR_time",
     ]
 
-    session_id = pitch_ids[0][:-2]
+    session_id = str(pitch_ids[0])[:-2]
     for pitch_id in pitch_ids:
         data = df.get_group((pitch_id,))
         time_stamps = data["time"].reset_index(drop=True)
-        timing_metrics = data[timing_cols].iloc[0, :].reset_index(drop=True)
+        # timing_metrics = data[timing_cols].iloc[0, :].reset_index(drop=True)
+        timing_metrics = data[timing_cols].iloc[0, :].T
+        timing_metrics.columns = timing_cols
         positions = data.drop(columns=timing_cols).iloc[:, 2:].reset_index(drop=True)
         positions = parse_joint_data(positions)
         pitch = pass_to_struct(positions, time_stamps, timing_metrics)
 
-        if pitch_id[:-2] == session_id:
+        if str(pitch_id)[:-2] == session_id:
             pitches.append(pitch)
             pitch = None
         else:
@@ -70,14 +73,14 @@ def get_data(file: str) -> List[Session]:
             sessions.append(session)
 
             pitches = []
-            session_id = pitch_id[:-2]
+            session_id = str(pitch_id)[:-2]
             pitches.append(pitch)
             pitch = None
 
     return sessions
 
 
-def parse_joint_data(data: List[pd.DataFrame]) -> List[pd.DataFrame]:
+def parse_joint_data(data: pd.DataFrame) -> List[pd.DataFrame]:
     joints = data.columns
     last_joint = joints[0][:-2]
     joint_data = pd.DataFrame()
@@ -132,8 +135,8 @@ def pass_to_struct(
         positions[15],
         positions[16],
         positions[17],
-        [],
-        [],
+        pd.DataFrame(),
+        pd.DataFrame(),
     )
 
     return pitch
@@ -176,11 +179,13 @@ def calculate_joint_angle(
 def get_angle_metrics(
     proximal: pd.DataFrame, joint: pd.DataFrame, distal: pd.DataFrame, dt: float
 ) -> pd.DataFrame:
-    proximal = np.array(proximal[["x", "y", "z"]])
-    joint = np.array(joint[["x", "y", "z"]])
-    distal = np.array(distal[["x", "y", "z"]])
+    # proximal = np.array(proximal[["x", "y", "z"]])
+    # joint = np.array(joint[["x", "y", "z"]])
+    # distal = np.array(distal[["x", "y", "z"]])
 
-    theta = calculate_joint_angle(proximal, joint, distal)
+    theta = calculate_joint_angle(
+        proximal.to_numpy(), joint.to_numpy(), distal.to_numpy()
+    )
     omega = np.gradient(theta, dt, axis=0)
     alpha = np.gradient(omega, dt, axis=0)
 
@@ -233,10 +238,12 @@ def calculate_segment_rotation(
 def get_rotation_metrics(
     lead: pd.DataFrame, rear: pd.DataFrame, axis_of_rotation: str, dt: float
 ) -> pd.DataFrame:
-    lead = np.array(lead[["x", "y", "z"]])
-    rear = np.array(rear[["x", "y", "z"]])
+    # lead = np.array(lead[["x", "y", "z"]])
+    # rear = np.array(rear[["x", "y", "z"]])
 
-    theta = calculate_segment_rotation(lead, rear, axis_of_rotation)
+    theta = calculate_segment_rotation(
+        lead.to_numpy(), rear.to_numpy(), axis_of_rotation
+    )
     omega = np.gradient(theta, dt, axis=0)
     alpha = np.gradient(omega, dt, axis=0)
 
