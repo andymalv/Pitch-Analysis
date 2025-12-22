@@ -4,7 +4,6 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.signal import resample
 
 
 # %%
@@ -331,6 +330,51 @@ def get_metrics(df: List[Session]) -> List[Session]:
 
     return df
 
+def resample_data(df: List[Session]):
+    for session in df:
+        resample_rate = get_resample_rate(session)
+        
+        for pitch in session.pitches:
+            time_resampled = resample_time(pitch.time_stamps, resample_rate)
+            timing_metrics_resampled = resample_timing_metrics(pitch.timing_metrics, time_resampled)
+
+
+def get_resample_rate(session: Session) -> int:
+    samples = np.zeros(len(session.pitches))
+    i = 0
+    for pitch in session.pitches:
+        samples[i] = len(pitch.time_stamps)
+        i += 1
+
+    return samples.min()
+
+
+def resample_time(time_raw: pd.Series, resample_rate: int) -> pd.Series:
+    resampled_time = np.linspace(time_raw.min(), time_raw.max(), resample_rate)
+
+    return resampled_time
+
+
+def resample_timing_metrics(timing_metrics: pd.DataFrame, resampled_time: pd.Series):
+    resampled_timing_metrics = []
+    for metric in timing_metrics:
+        high_index = np.searchsorted(resampled_time, metric, side="left")
+        high_num = resampled_time[high_index]
+        high_diff = np.abs(metric - high_num)
+
+        low_num = resampled_time[high_index - 1]
+        low_diff = np.abs(metric - low_num)
+
+        if low_diff < high_diff:
+            resampled_timing_metrics.append(low_num)
+        else:
+            resampled_timing_metrics.append(high_num)
+
+    resampled_timing_metrics = pd.DataFrame(resampled_timing_metrics)
+    resampled_timing_metrics.columns = timing_metrics.columns
+
+    return resampled_timing_metrics
+
 
 def save_as_parquet(df: List[Session]):
     data_dir = Path("Driveline")
@@ -349,7 +393,6 @@ def save_as_parquet(df: List[Session]):
                         pitch_dir / f"{field}.parquet"
                     )
                 else:
-                    # print(f"Session: {session}, Pitch {i + 1}, Joint: {field}")
                     value.to_parquet(pitch_dir / f"{field}.parquet")
 
 
@@ -357,7 +400,7 @@ def save_as_parquet(df: List[Session]):
 def main():
     df = get_data("landmarks.csv")
     df = get_metrics(df)
-    save_as_parquet(df)
+    # save_as_parquet(df)
 
 
 if __name__ == "__main__":
