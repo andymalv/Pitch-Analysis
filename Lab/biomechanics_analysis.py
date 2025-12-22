@@ -1,8 +1,10 @@
 from dataclasses import dataclass
-from typing import List
+from pathlib import Path
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
+from scipy.signal import resample
 
 
 # %%
@@ -14,7 +16,7 @@ class Pitch:
     rear_hip: pd.DataFrame
     elbow: pd.DataFrame
     hand: pd.DataFrame
-    read_knee: pd.DataFrame
+    rear_knee: pd.DataFrame
     shoulder: pd.DataFrame
     wrist: pd.DataFrame
     lead_ankle: pd.DataFrame
@@ -29,7 +31,7 @@ class Pitch:
     thorax_prox: pd.DataFrame
     CoM: pd.DataFrame
     torso: pd.DataFrame
-    pelivs: pd.DataFrame
+    pelvis: pd.DataFrame
 
 
 @dataclass
@@ -158,8 +160,8 @@ def calculate_joint_angle(
     num_frames = np.shape(joint)[0]
     theta = np.zeros([num_frames])
 
-    proximal_segment = proximal - joint
-    distal_segment = joint - distal
+    proximal_segment = proximal[:, 0:3] - joint[:, 0:3]
+    distal_segment = joint[:, 0:3] - distal[:, 0:3]
 
     for i in range(num_frames):
         proximal_vector = proximal_segment[i, :]
@@ -178,10 +180,6 @@ def calculate_joint_angle(
 def get_angle_metrics(
     proximal: pd.DataFrame, joint: pd.DataFrame, distal: pd.DataFrame, dt: float
 ) -> pd.DataFrame:
-    # proximal = np.array(proximal[["x", "y", "z"]])
-    # joint = np.array(joint[["x", "y", "z"]])
-    # distal = np.array(distal[["x", "y", "z"]])
-
     theta = calculate_joint_angle(
         proximal.to_numpy(), joint.to_numpy(), distal.to_numpy()
     )
@@ -237,9 +235,6 @@ def calculate_segment_rotation(
 def get_rotation_metrics(
     lead: pd.DataFrame, rear: pd.DataFrame, axis_of_rotation: str, dt: float
 ) -> pd.DataFrame:
-    # lead = np.array(lead[["x", "y", "z"]])
-    # rear = np.array(rear[["x", "y", "z"]])
-
     theta = calculate_segment_rotation(
         lead.to_numpy(), rear.to_numpy(), axis_of_rotation
     )
@@ -256,6 +251,43 @@ def get_rotation_metrics(
 def calculate_metrics(pitch: Pitch) -> Pitch:
     dt = get_framerate(pitch)
 
+    pitch.elbow = pd.concat(
+        [
+            pitch.elbow,
+            get_angle_metrics(pitch.shoulder, pitch.elbow, pitch.wrist, dt),
+        ],
+        axis=1,
+    )
+    pitch.rear_knee = pd.concat(
+        [
+            pitch.rear_knee,
+            get_angle_metrics(pitch.rear_hip, pitch.rear_knee, pitch.rear_ankle, dt),
+        ],
+        axis=1,
+    )
+    pitch.shoulder = pd.concat(
+        [
+            pitch.shoulder,
+            get_angle_metrics(pitch.thorax_prox, pitch.shoulder, pitch.elbow, dt),
+        ],
+        axis=1,
+    )
+    pitch.wrist = pd.concat(
+        [
+            pitch.wrist,
+            get_angle_metrics(pitch.elbow, pitch.wrist, pitch.hand, dt),
+        ],
+        axis=1,
+    )
+    pitch.glove_elbow = pd.concat(
+        [
+            pitch.glove_elbow,
+            get_angle_metrics(
+                pitch.glove_shoulder, pitch.glove_elbow, pitch.glove_wrist, dt
+            ),
+        ],
+        axis=1,
+    )
     pitch.lead_knee = pd.concat(
         [
             pitch.lead_knee,
@@ -263,7 +295,25 @@ def calculate_metrics(pitch: Pitch) -> Pitch:
         ],
         axis=1,
     )
-
+    pitch.glove_shoulder = pd.concat(
+        [
+            pitch.glove_shoulder,
+            get_angle_metrics(
+                pitch.thorax_dist, pitch.glove_shoulder, pitch.glove_elbow, dt
+            ),
+        ],
+        axis=1,
+    )
+    pitch.glove_wrist = pd.concat(
+        [
+            pitch.glove_wrist,
+            get_angle_metrics(
+                pitch.glove_elbow, pitch.glove_wrist, pitch.glove_hand, dt
+            ),
+        ],
+        axis=1,
+    )
+    pitch.torso = get_rotation_metrics(pitch.thorax_prox, pitch.thorax_dist, "z", dt)
     pitch.pelvis = get_rotation_metrics(pitch.lead_hip, pitch.rear_hip, "z", dt)
 
     return pitch
@@ -282,10 +332,32 @@ def get_metrics(df: List[Session]) -> List[Session]:
     return df
 
 
+def save_as_parquet(df: List[Session]):
+    data_dir = Path("Driveline")
+
+    for session in df:
+        session_dir = data_dir / session.id
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        for i, pitch in enumerate(session.pitches):
+            pitch_dir = session_dir / f"pitch_{i + 1}"
+            pitch_dir.mkdir(exist_ok=True)
+
+            for field, value in vars(pitch).items():
+                if isinstance(value, pd.Series):
+                    pd.DataFrame({field: value}).to_parquet(
+                        pitch_dir / f"{field}.parquet"
+                    )
+                else:
+                    # print(f"Session: {session}, Pitch {i + 1}, Joint: {field}")
+                    value.to_parquet(pitch_dir / f"{field}.parquet")
+
+
 # %%
 def main():
     df = get_data("landmarks.csv")
     df = get_metrics(df)
+    save_as_parquet(df)
 
 
 if __name__ == "__main__":
