@@ -1,43 +1,11 @@
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import numpy as np
 import pandas as pd
-from scipy.signal import resample
+from rich.progress import track
 
-
-# %%
-@dataclass
-class Pitch:
-    time_stamps: pd.Series
-    timing_metrics: pd.DataFrame
-    rear_ankle: pd.DataFrame
-    rear_hip: pd.DataFrame
-    elbow: pd.DataFrame
-    hand: pd.DataFrame
-    rear_knee: pd.DataFrame
-    shoulder: pd.DataFrame
-    wrist: pd.DataFrame
-    lead_ankle: pd.DataFrame
-    lead_hip: pd.DataFrame
-    glove_elbow: pd.DataFrame
-    glove_hand: pd.DataFrame
-    lead_knee: pd.DataFrame
-    glove_shoulder: pd.DataFrame
-    glove_wrist: pd.DataFrame
-    thorax_ap: pd.DataFrame
-    thorax_dist: pd.DataFrame
-    thorax_prox: pd.DataFrame
-    CoM: pd.DataFrame
-    torso: pd.DataFrame
-    pelvis: pd.DataFrame
-
-
-@dataclass
-class Session:
-    pitches: List[Pitch]
-    id: str
+from models import Pitch, Session
 
 
 # %%
@@ -57,7 +25,7 @@ def get_data(path: str) -> List[Session]:
     ]
 
     session_id = str(pitch_ids[0])[:-2]
-    for pitch_id in pitch_ids:
+    for pitch_id in track(pitch_ids, description="Loading data..."):
         data = df.get_group((pitch_id,))
         time_stamps = data["time"].reset_index(drop=True)
         timing_metrics = data[timing_cols].iloc[0, :].T
@@ -322,7 +290,7 @@ def calculate_metrics(pitch: Pitch) -> Pitch:
 def get_metrics(df: List[Session]) -> List[Session]:
     num_sessions = len(df)
 
-    for session in range(num_sessions):
+    for session in track(range(num_sessions), description="Calculating metrics..."):
         num_pitches = len(df[session].pitches)
 
         for pitch in range(num_pitches):
@@ -332,10 +300,12 @@ def get_metrics(df: List[Session]) -> List[Session]:
     return df
 
 
-def save_as_parquet(df: List[Session]):
-    data_dir = Path("Driveline")
+def save_as_parquet(df: List[Session], subdir: str):
+    data_dir = Path(f"Driveline/{subdir}")
 
-    for session in df:
+    # for session in df:
+    for i in track(range(len(df)), description="Saving..."):
+        session = df[i]
         session_dir = data_dir / session.id
         session_dir.mkdir(parents=True, exist_ok=True)
 
@@ -343,22 +313,10 @@ def save_as_parquet(df: List[Session]):
             pitch_dir = session_dir / f"pitch_{i + 1}"
             pitch_dir.mkdir(exist_ok=True)
 
-            for field, value in vars(pitch).items():
-                if isinstance(value, pd.Series):
-                    pd.DataFrame({field: value}).to_parquet(
-                        pitch_dir / f"{field}.parquet"
+            for joint, data in vars(pitch).items():
+                if not isinstance(data, pd.DataFrame):
+                    pd.DataFrame({joint: data}).to_parquet(
+                        pitch_dir / f"{joint}.parquet"
                     )
                 else:
-                    # print(f"Session: {session}, Pitch {i + 1}, Joint: {field}")
-                    value.to_parquet(pitch_dir / f"{field}.parquet")
-
-
-# %%
-def main():
-    df = get_data("landmarks.csv")
-    df = get_metrics(df)
-    save_as_parquet(df)
-
-
-if __name__ == "__main__":
-    main()
+                    data.to_parquet(pitch_dir / f"{joint}.parquet")
