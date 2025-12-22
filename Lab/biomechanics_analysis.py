@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -282,10 +283,31 @@ def get_metrics(df: List[Session]) -> List[Session]:
     return df
 
 
+def save_as_parquet(df: List[Session]):
+    data_dir = Path("Driveline")
+
+    for session in df:
+        session_dir = data_dir / session.id
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        for i, pitch in enumerate(session.pitches):
+            pitch_dir = session_dir / f"pitch_{i + 1}"
+            pitch_dir.mkdir(exist_ok=True)
+
+            for field, value in vars(pitch).items():
+                if isinstance(value, pd.Series):
+                    pd.DataFrame({field: value}).to_parquet(
+                        pitch_dir / f"{field}.parquet"
+                    )
+                else:
+                    value.to_parquet(pitch_dir / f"{field}.parquet")
+
+
 # %%
 def main():
     df = get_data("landmarks.csv")
     df = get_metrics(df)
+    save_as_parquet(df)
 
 
 if __name__ == "__main__":
