@@ -4,8 +4,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-# from biomechanics_analysis import Session
-
+from biomechanics_analysis import save_as_parquet
 
 # %%
 @dataclass
@@ -124,3 +123,12 @@ def pass_to_struct(
     )
 
     return pitch
+
+# %%
+def main():
+    path = "joint_angles.csv"
+    df = get_data(path)
+    save_as_parquet(df, "gold")
+
+if __name__ == "__main__":
+    main()
